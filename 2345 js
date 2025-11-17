@@ -1,0 +1,38 @@
+const mongoose = require('mongoose');
+
+const noteSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Title is required'],
+    trim: true,
+    maxlength: [100, 'Title cannot be more than 100 characters']
+  },
+  content: {
+    type: String,
+    required: [true, 'Content is required'],
+    trim: true,
+    maxlength: [1000, 'Content cannot be more than 1000 characters']
+  },
+  created: {
+    type: Date,
+    default: Date.now
+  },
+  changed: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+
+noteSchema.pre('save', function(next) {
+  this.changed = Date.now();
+  next();
+});
+
+
+noteSchema.pre('findOneAndUpdate', function(next) {
+  this.set({ changed: Date.now() });
+  next();
+});
+
+module.exports = mongoose.model('Note', noteSchema);
