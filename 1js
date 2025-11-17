@@ -1,0 +1,197 @@
+const express = require('express');
+const router = express.Router();
+const Note = require('../models/Note');
+
+// GET /notes - Get all notes
+router.get('/notes', async (req, res, next) => {
+  try {
+    const notes = await Note.find().sort({ created: -1 });
+    
+    if (notes.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No notes found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: notes.length,
+      data: notes
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /note/:id - Get note by ID
+router.get('/note/:id', async (req, res, next) => {
+  try {
+    const note = await Note.findById(req.params.id);
+    
+    if (!note) {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: note
+    });
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+    next(error);
+  }
+});
+
+// GET /note/read/:title - Get note by title
+router.get('/note/read/:title', async (req, res, next) => {
+  try {
+    const note = await Note.findOne({ title: req.params.title });
+    
+    if (!note) {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: note
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /note - Create new note
+router.post('/note', async (req, res, next) => {
+  try {
+    const { title, content } = req.body;
+
+    // Check if note with same title already exists
+    const existingNote = await Note.findOne({ title });
+    if (existingNote) {
+      return res.status(409).json({
+        success: false,
+        message: 'Note with this title already exists'
+      });
+    }
+
+    const note = await Note.create({
+      title,
+      content
+    });
+
+    res.status(201).json({
+      success: true,
+      data: note
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Note with this title already exists'
+      });
+    }
+    next(error);
+  }
+});
+
+// PUT /note/:id - Update note
+router.put('/note/:id', async (req, res, next) => {
+  try {
+    const { title, content } = req.body;
+
+    // Check if note exists
+    const existingNote = await Note.findById(req.params.id);
+    if (!existingNote) {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+
+    // Check if new title conflicts with existing note
+    if (title && title !== existingNote.title) {
+      const noteWithSameTitle = await Note.findOne({ title });
+      if (noteWithSameTitle) {
+        return res.status(409).json({
+          success: false,
+          message: 'Note with this title already exists'
+        });
+      }
+    }
+
+    const updatedNote = await Note.findByIdAndUpdate(
+      req.params.id,
+      {
+        title,
+        content,
+        changed: Date.now()
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    res.status(204).json({
+      success: true,
+      data: updatedNote
+    });
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Note with this title already exists'
+      });
+    }
+    next(error);
+  }
+});
+
+// DELETE /note/:id - Delete note
+router.delete('/note/:id', async (req, res, next) => {
+  try {
+    const note = await Note.findById(req.params.id);
+    
+    if (!note) {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+
+    await Note.findByIdAndDelete(req.params.id);
+
+    res.status(204).json({
+      success: true,
+      message: 'Note deleted successfully'
+    });
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(404).json({
+        success: false,
+        message: 'Note not found'
+      });
+    }
+    next(error);
+  }
+});
+
+module.exports = router;
